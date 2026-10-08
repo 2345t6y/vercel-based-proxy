@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Linkframe</title>
+<style>
+  :root {
+    --chrome: #131c2e; --chrome-2: #1f2b44; --text: #dfe6f3; --muted: #8c9ab5;
+    --accent: #2ec4b6; --accent-ink: #062b27; --line: #c9d1de;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+    --sans: "Avenir Next", "Segoe UI", system-ui, -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { display: flex; flex-direction: column; font-family: var(--sans); background: #e8ecf1; color: #17202f; overflow: hidden; }
+  button { font: inherit; cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  header { background: var(--chrome); color: var(--text); display: flex; align-items: center; gap: 6px; padding: 8px; }
+  body.focus header { display: none; }
+  .brand { font-weight: 700; padding: 0 8px 0 4px; }
+  .brand i { color: var(--accent); font-style: normal; }
+  header button {
+    background: transparent; border: 0; color: var(--text); width: 34px; height: 34px;
+    border-radius: 8px; display: grid; place-items: center; flex: none; padding: 0;
+  }
+  header button:hover { background: var(--chrome-2); }
+  header svg { width: 18px; height: 18px; }
+  form { flex: 1; display: flex; gap: 6px; min-width: 0; }
+  #addr {
+    flex: 1; min-width: 0; height: 34px; border: 0; border-radius: 8px; padding: 0 12px;
+    background: var(--chrome-2); color: var(--text); font-family: var(--mono); font-size: 14px;
+  }
+  #addr::placeholder { color: var(--muted); }
+  .go { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 8px; padding: 0 16px; font-weight: 600; height: 34px; }
+
+  #stage { position: relative; flex: 1; min-height: 0; background: #fff; }
+  iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #fff; }
+  #bar { position: absolute; top: 0; left: 0; height: 3px; width: 0; background: var(--accent); z-index: 3; transition: width .35s; }
+
+  .empty, .lock { position: absolute; inset: 0; z-index: 2; overflow: auto; padding: 8vh 24px; background: #f6f8fb; }
+  .empty > div, .lock > div { max-width: 560px; margin: 0 auto; }
+  h1 { margin: 0 0 8px; font-size: 28px; }
+  p { color: #4a5670; line-height: 1.55; margin: 0 0 20px; }
+  .big { display: flex; gap: 8px; margin-bottom: 20px; }
+  .big input {
+    flex: 1; min-width: 0; height: 46px; border: 1px solid var(--line); border-radius: 10px; padding: 0 14px; font: inherit;
+  }
+  .big button { height: 46px; padding: 0 20px; border: 0; border-radius: 10px; background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chip:hover { border-color: var(--accent); }
+  .err { color: #c0282d; min-height: 1.4em; margin: -10px 0 12px; }
+
+  #showbar {
+    display: none; position: fixed; top: 8px; right: 8px; z-index: 5; height: 32px; padding: 0 12px;
+    border: 0; border-radius: 8px; background: rgba(19,28,46,.82); color: var(--text); opacity: .55;
+  }
+  #showbar:hover, #showbar:focus-visible { opacity: 1; }
+  body.focus #showbar { display: block; }
+  [hidden] { display: none !important; }
+  @media (prefers-reduced-motion: reduce) { #bar { transition: none; } }
+  @media (max-width: 560px) { .brand { display: none; } }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="brand">Link<i>frame</i></span>
+  <button id="back" aria-label="Back" title="Back"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3L5 8l5 5"/></svg></button>
+  <button id="fwd" aria-label="Forward" title="Forward"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3l5 5-5 5"/></svg></button>
+  <button id="reload" aria-label="Reload" title="Reload"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 8a5 5 0 1 1-1.6-3.7M13 2.5v3h-3"/></svg></button>
+  <form id="topForm">
+    <input id="addr" placeholder="Paste a link or search" aria-label="Link or search" autocomplete="off" spellcheck="false">
+    <button class="go">Open</button>
+  </form>
+  <button id="focusBtn" aria-label="Hide this bar" title="Hide bar (good for games)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6V2h4M14 6V2h-4M2 10v4h4M14 10v4h-4"/></svg></button>
+  <button id="newtab" aria-label="Open in a normal browser tab" title="Open this link in a normal tab"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h4v4M13 3L7 9M12 10v3H3V4h3"/></svg></button>
+</header>
+
+<div id="stage">
+  <div id="bar"></div>
+
+  <div class="empty" id="empty">
+    <div>
+      <h1>Open any link here</h1>
+      <p>Paste a link to a game, a chat site or anything else. It loads inside this page, so you can keep using this tab.</p>
+      <form class="big" id="bigForm">
+        <input id="bigAddr" placeholder="Paste a link or search" aria-label="Link or search" autocomplete="off" spellcheck="false">
+        <button>Open</button>
+      </form>
+      <div class="chips" id="recent" aria-label="Recent links"></div>
+    </div>
+  </div>
+
+  <div class="lock" id="lock" hidden>
+    <div>
+      <h1>Enter the access key</h1>
+      <p>This copy of Linkframe is locked by its owner.</p>
+      <form class="big" id="lockForm">
+        <input id="key" type="password" placeholder="Access key" aria-label="Access key" autocomplete="current-password">
+        <button>Unlock</button>
+      </form>
+      <div class="err" id="lockErr" role="alert"></div>
+    </div>
+  </div>
+
+  <iframe id="frame" title="Opened page"
+    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads allow-pointer-lock allow-presentation"
+    allow="fullscreen; autoplay; gamepad; clipboard-write"></iframe>
+</div>
+
+<button id="showbar">Show bar</button>
+
+<script>
+(function () {
+  "use strict";
+  var P = "/api/proxy?url=";
+  var $ = function (id) { return document.getElementById(id); };
+  var frame = $("frame"), addr = $("addr"), empty = $("empty"), bar = $("bar");
+  var current = "";
+
+  function read(key, fb) { try { return JSON.parse(localStorage.getItem(key)) || fb; } catch (e) { return fb; } }
+  function write(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) {} }
+
+  /* A link opens as-is; anything else becomes a search. */
+  function resolve(input) {
+    var v = (input || "").trim();
+    if (!v) return "";
+    if (/^https?:\/\//i.test(v)) return v;
+    if (/^[^\s/]+\.[a-z]{2,}([/:?#].*)?$/i.test(v) || /^localhost(:\d+)?([/?#].*)?$/i.test(v)) return "https://" + v;
+    return "https://html.duckduckgo.com/html/?q=" + encodeURIComponent(v);
+  }
+
+  function remember(u) {
+    var list = read("linkframe.recent", []).filter(function (x) { return x !== u; });
+    list.unshift(u);
+    write("linkframe.recent", list.slice(0, 8));
+    drawRecent();
+  }
+
+  function drawRecent() {
+    var box = $("recent");
+    box.textContent = "";
+    read("linkframe.recent", []).forEach(function (u) {
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "chip"; b.textContent = u.replace(/^https?:\/\//, ""); b.title = u;
+      b.addEventListener("click", function () { go(u); });
+      box.appendChild(b);
+    });
+  }
+
+  function setCurrent(u) {
+    current = u; addr.value = u;
+    try { history.replaceState(null, "", "?u=" + encodeURIComponent(u)); } catch (e) {}
+  }
+
+  function go(input) {
+    var u = resolve(input);
+    if (!u) return;
+    empty.hidden = true;
+    bar.style.width = "70%";
+    frame.src = P + encodeURIComponent(u);
+    setCurrent(u); remember(u);
+  }
+
+  frame.addEventListener("load", function () {
+    bar.style.width = "100%";
+    setTimeout(function () { bar.style.width = "0"; }, 300);
+    try {
+      var loc = frame.contentWindow.location;
+      if (loc.pathname === "/api/proxy") {
+        var u = new URLSearchParams(loc.search).get("url");
+        if (u && u !== current) { setCurrent(u); remember(u); }
+      }
+    } catch (e) {}
+  });
+
+  $("topForm").addEventListener("submit", function (e) { e.preventDefault(); go(addr.value); });
+  $("bigForm").addEventListener("submit", function (e) { e.preventDefault(); go($("bigAddr").value); });
+  $("back").addEventListener("click", function () { try { frame.contentWindow.history.back(); } catch (e) {} });
+  $("fwd").addEventListener("click", function () { try { frame.contentWindow.history.forward(); } catch (e) {} });
+  $("reload").addEventListener("click", function () { if (current) go(current); });
+  $("newtab").addEventListener("click", function () { if (current) window.open(current, "_blank", "noopener"); });
+  $("focusBtn").addEventListener("click", function () { document.body.classList.add("focus"); });
+  $("showbar").addEventListener("click", function () { document.body.classList.remove("focus"); });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && document.body.classList.contains("focus")) document.body.classList.remove("focus");
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "l") { e.preventDefault(); document.body.classList.remove("focus"); addr.focus(); addr.select(); }
+  });
+
+  /* Optional access key (set ACCESS_KEY in Vercel to turn this on). */
+  function start() {
+    drawRecent();
+    var q = new URLSearchParams(location.search).get("u");
+    if (q) go(q); else $("bigAddr").focus();
+  }
+
+  fetch("/api/session").then(function (r) { return r.json(); }).then(function (s) {
+    if (s.locked && !s.authed) {
+      $("lock").hidden = false; $("key").focus();
+    } else start();
+  }).catch(start);
+
+  $("lockForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    fetch("/api/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key: $("key").value }) })
+      .then(function (r) {
+        if (!r.ok) { $("lockErr").textContent = "That key is not right. Check it and try again."; return; }
+        $("lock").hidden = true; start();
+      })
+      .catch(function () { $("lockErr").textContent = "Could not reach the server. Try again."; });
+  });
+})();
+</script>
+</body>
+</html>
